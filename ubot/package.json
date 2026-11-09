@@ -1,0 +1,23 @@
+{
+  "name": "ubot-arta-pedia",
+  "version": "1.21.0",
+  "description": "UBOT ARTA PEDIA - Telegram userbot + bot kawalan (ARTA PEDIA ID)",
+  "main": "bot.js",
+  "scripts": {
+    "start": "node bot.js"
+  },
+  "dependencies": {
+    "@resvg/resvg-js": "^2.6.2",
+    "big-integer": "^1.6.52",
+    "grammy": "^1.30.0",
+    "input": "^1.0.1",
+    "telegram": "^2.26.0"
+  },
+  "optionalDependencies": {
+    "jsqr": "^1.4.0",
+    "pngjs": "^7.0.0",
+    "jpeg-js": "^0.4.4",
+    "@distube/ytdl-core": "^4.16.0",
+    "yt-search": "^2.12.1"
+  }
+}

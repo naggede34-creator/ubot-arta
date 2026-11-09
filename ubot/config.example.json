@@ -1,0 +1,61 @@
+{
+  "api_id": 0,
+  "api_hash": "ISI_API_HASH",
+  "bot_token": "ISI_BOT_TOKEN",
+  "owner_ids": [],
+  "approval_group_id": "",
+  "default_paket": "PLATINUM",
+  "developer_url": "https://t.me/csartapedia",
+  "channel_url": "https://t.me/kkaelnokosmurah",
+  "prefix": "X",
+  "broadcast_delay": 10,
+  "default_days": 9999,
+  "timezone_offset": 7,
+  "timezone_label": "WIB",
+  "currency": "IDR",
+  "loading_emoji": "",
+  "inline_feedback": false,
+  "start_loading_ms": 900,
+  "ai_cooldown": 15,
+  "ai_daily_limit": 30,
+  "brand": "UBOT ARTA PEDIA",
+  "lang": "id",
+  "ai_provider": "auto",
+  "afk_autooff": false,
+  "premium_emoji": true,
+  "start_extra": false,
+  "start_account": false,
+  "gateway": {
+    "provider": "agw",
+    "api_key": "",
+    "secret": "",
+    "base_url": "https://www.tokonokosarta.my.id/api/agw",
+    "poll_seconds": 5
+  },
+  "ai_restapi_url": "https://apiii-xrina.my.id/ai/darkgpt",
+  "ai_restapi_method": "GET",
+  "ai_gemini_url": "https://apiii-xrina.my.id/ai/gemini",
+  "self_role": {
+    "enabled": true,
+    "price": 3000,
+    "days": 999,
+    "tangan_kanan_price": 7000
+  },
+  "share_watermark": true,
+  "watermark_text": "UBOT AUTO PROMOSI GRATIS @artapediaubot",
+  "autocek_interval_min": 3,
+  "watermark_tiers": [
+    "LITE"
+  ],
+  "notify_channel_id": "-1004438772298",
+  "free_auto_approve": true,
+  "auto_load_premium": true,
+  "help_buttons": true,
+  "official_handle": "artapediaubot",
+  "shop_url": "https://www.tokonokosarta.my.id/",
+  "auto_join_targets": [
+    "logubotarta",
+    "artapediaaaa"
+  ],
+  "dashboard_title": "ARTA PEDIA ID DASHBOARD"
+}
