@@ -302,9 +302,9 @@ const Subtitle: React.FC = () => {
 // ---------------------------------------------------------------- MIMIN ARTA (animasi + lip-sync)
 // Pose maskot (gambar dari owner, latar sudah dihapus). mouth = posisi & lebar mulut di gambar 1600x1600 untuk lip-sync.
 const POSES = {
-  smile: { src: "mimin-smile.png", mouth: { x: 826, y: 607, w: 118, rot: -9, skin: "#f5d6c2" } },
-  point: { src: "mimin-point.png", mouth: { x: 851, y: 611, w: 78, rot: -2, skin: "#f6d7c3" } },
-  laugh: { src: "mimin-laugh.png", mouth: null },
+  smile: { src: "mimin-smile-fx.png", mouth: { x: 826, y: 607, w: 118, rot: -9, skin: "#f5d6c2" } },
+  point: { src: "mimin-point-fx.png", mouth: { x: 851, y: 611, w: 78, rot: -2, skin: "#f6d7c3" } },
+  laugh: { src: "mimin-laugh-fx.png", mouth: null },
 } as const;
 type PoseKey = keyof typeof POSES;
 // jadwal pose (detik) mengikuti kalimat dubbing; selain ini = smile
@@ -350,13 +350,12 @@ const MiminActor: React.FC = () => {
   const hop = ramp(f, [[19.5, 19.9], [39.2, 39.6], [61.1, 61.5], [78.7, 79.1]], 4) * 45;
   const sway = Math.sin(f / 24);
   const talkBob = open * 6 * Math.sin(f / 2.5);
-  const outline = "drop-shadow(5px 0 0 #fff) drop-shadow(-5px 0 0 #fff) drop-shadow(0 5px 0 #fff) drop-shadow(0 -5px 0 #fff) drop-shadow(16px 18px 0 rgba(27,15,31,0.55)) drop-shadow(0 0 34px rgba(167,139,250,0.8))";
   return (
     <div style={{ position: "absolute", left: 300, top: 1000, width: 840, height: 840, zIndex: 10, perspective: 1400, transform: `translateY(${(1 - enter) * 900 - hop + talkBob}px)` }}>
-      <div style={{ position: "absolute", inset: 0, transformOrigin: "50% 90%", transform: `rotateY(${sway * 7}deg) rotate(${sway * 1.6 + (pose === "laugh" ? Math.sin(f / 3) * 2 : 0)}deg) scale(${pop * (1 + Math.sin(f / 18) * 0.008)})`, filter: outline }}>
+      <div style={{ position: "absolute", inset: 0, transformOrigin: "50% 90%", transform: `rotateY(${sway * 7}deg) rotate(${sway * 1.6 + (pose === "laugh" ? Math.sin(f / 3) * 2 : 0)}deg) scale(${pop * (1 + Math.sin(f / 18) * 0.008)})` }}>
         {(Object.keys(POSES) as PoseKey[]).map((k) => (
-          <div key={k} style={{ position: "absolute", inset: 0, opacity: k === pose ? 1 : 0 }}>
-            <Img src={staticFile(POSES[k].src)} style={{ width: "100%", height: "100%" }} />
+          k !== pose ? null : <div key={k} style={{ position: "absolute", inset: 0 }}>
+            <Img src={staticFile(POSES[k].src)} style={{ position: "absolute", left: "-6.6667%", top: "-6.6667%", width: "113.3333%", height: "113.3333%" }} />
             {POSES[k].mouth && k === pose && <MouthOverlay m={POSES[k].mouth!} open={open} />}
           </div>
         ))}
