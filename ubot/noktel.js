@@ -191,7 +191,7 @@ function menuCard(uid) {
   const kb = (fancy) => [
     pair(btn(fancy, "Isi Saldo", "nk:d", "success", UI.E.bolt), btn(fancy, "Beli Noktel", "nk:b", "success", UI.E.gem)),
     pair(btn(fancy, "Info Saldo", "nk:s", "primary", UI.E.chart), btn(fancy, "Riwayat Pesanan", "nk:r", "primary", UI.E.time)),
-    [btn(fancy, "Info Stok", "nk:st", "primary", UI.E.box)],
+    pair(btn(fancy, "Info Stok", "nk:st", "primary", UI.E.box), btn(fancy, "Redeem Kode", "vc:r", "success", UI.E.tag)),
     ...(isOwner(uid) ? [[btn(fancy, "Kelola Noktel", "nk:om", "danger", UI.E.crown)]] : []),
     [btn(fancy, "Kembali", "home:p:0", "plain", UI.E.wave)],
   ];
@@ -240,21 +240,26 @@ function catCard(key, pg) {
   return { c, kb };
 }
 
+const discOf = (uid, price) => { try { return require("./voucher").priceFor(uid, price, "noktel"); } catch (_) { return { final: price, cut: 0, code: null }; } };
+const consumeDisc = (o) => { if (o && o.disc && o.disc.code) { try { require("./voucher").consume(o.userId, o.disc.code); } catch (_) {} } };
 function itemCard(a, uid) {
+  const dc = discOf(uid, a.price);
+  const pl = dc.cut ? `${rp(dc.final)} (diskon ${rp(dc.cut)})` : rp(a.price);
   const c = UI.card({
     title: `Noktel ${nkId(a.id)}`, icon: "gem",
     rows: [
       ["tag", "ID Noktel", `<code>${nkId(a.id)}</code>`],
       ["box", "Kategori", `<b>${esc(clip(a.category, 40))}</b>`],
       ["user", "Nomor", esc(mask(a.phone))],
-      ["chart", "Harga", `<b>${rp(a.price)}</b>`],
+      ["chart", "Harga", dc.cut ? `<s>${rp(a.price)}</s> <b>${rp(dc.final)}</b>` : `<b>${rp(a.price)}</b>`],
+      ...(dc.cut ? [["tag", "Diskon aktif", `<code>${esc(dc.code)}</code> \u2212${rp(dc.cut)}`]] : []),
       ["bolt", "Saldo Anda", rp(bal(uid))],
     ],
     checks: [[true, "Bayar QRIS \u2014 akun dikirim otomatis setelah lunas"], [true, "Bayar saldo \u2014 akun langsung dikirim"], [true, "Tombol Minta OTP meneruskan kode login dari Telegram"]],
   });
   const kb = (fancy) => [
-    [btn(fancy, `Bayar QRIS \u00B7 ${rp(a.price)}`, `nk:q:${a.id}`, "success", UI.E.bolt)],
-    [btn(fancy, `Bayar Saldo \u00B7 ${rp(a.price)}`, `nk:y:${a.id}`, "primary", UI.E.chart)],
+    [btn(fancy, `Bayar QRIS \u00B7 ${pl}`, `nk:q:${a.id}`, "success", UI.E.bolt)],
+    [btn(fancy, `Bayar Saldo \u00B7 ${pl}`, `nk:y:${a.id}`, "primary", UI.E.chart)],
     [btn(fancy, "Kembali", `nk:c:${catKey(a.category)}:0`, "plain", UI.E.wave)],
   ];
   return { c, kb };
@@ -279,7 +284,7 @@ function saldoCard(uid) {
   return { c, kb };
 }
 
-const OL = { wait: "Menunggu bayar", paid: "Aktif", done: "Selesai", expired: "Kedaluwarsa", cancel: "Batal", refunded: "Dikembalikan ke saldo" };
+const OL = { wait: "Menunggu bayar", paid: "Aktif", done: "Selesai", expired: "Kedaluwarsa", cancel: "Batal", cancel_owner: "Dibatalkan owner", refunded: "Dikembalikan ke saldo" };
 function riwayatCard(uid) {
   const list = Object.values(S.orders).filter((o) => String(o.userId) === String(uid) && o.status !== "creating").sort((a, b) => b.no - a.no).slice(0, 8);
   const c = UI.card({
@@ -356,21 +361,22 @@ async function completeOrder(no) {
   o.status = "paid";
   a.status = "sold"; a.orderNo = no; a.soldAt = Date.now();
   save();
+  consumeDisc(o);
   await delMsg(o.qrMsg);
   await finalizeSale(o, a);
 }
-async function endOrder(no, st) {
+async function endOrder(no, st, byOwner = false) {
   const o = S.orders[no];
   if (!o || o.status !== "wait") return;
-  o.status = st === "expired" ? "expired" : "cancel";
+  o.status = st === "expired" ? "expired" : byOwner ? "cancel_owner" : "cancel";
   const a = S.accounts[o.accId];
   if (a && a.status === "reserved" && Number(a.orderNo) === Number(no)) { a.status = "ready"; delete a.orderNo; }
   save();
   await delMsg(o.qrMsg);
   await UI.sendCard(o.userId, UI.card({
-    title: st === "expired" ? "QRIS Kedaluwarsa" : "Pesanan Dibatalkan", icon: st === "expired" ? "time" : "no",
+    title: st === "expired" ? "QRIS Kedaluwarsa" : byOwner ? "Pesanan Dibatalkan Owner" : "Pesanan Dibatalkan", icon: st === "expired" ? "time" : "no",
     rows: [["tag", "Pesanan", `<code>${ordId(o.no)}</code>`], ["box", "Kategori", esc(clip(o.category, 40))], ["chart", "Harga", `<b>${rp(o.price)}</b>`]],
-    note: st === "expired" ? "Waktu pembayaran habis. Pilih noktel lagi untuk membuat QRIS baru." : "Tekan Menu Noktel bila ingin membeli lagi.",
+    note: st === "expired" ? "Waktu pembayaran habis. Pilih noktel lagi untuk membuat QRIS baru." : byOwner ? "Pesanan Anda dibatalkan oleh owner. Jangan membayar QRIS lama. Hubungi owner bila ada pertanyaan." : "Tekan Menu Noktel bila ingin membeli lagi.",
   }), menuKbBack).catch(() => {});
 }
 const watchOrder = (o) => gw.watch(o.txId, { onPaid: () => completeOrder(o.no), onEnd: (_r, st) => endOrder(o.no, st) });
@@ -590,10 +596,11 @@ async function startAdd(chatId, uid) {
     };
     save();
     st.saved = true;
+    try { require("./autonotif").newStock(S.accounts[id]); } catch (e) { console.error("[noktel] notif stok baru:", e.message); }
     await UI.sendCard(chatId, UI.card({
       title: "Stok Ditambahkan", icon: "ok",
       rows: [["tag", "ID Noktel", `<code>${nkId(id)}</code>`], ["user", "Nomor", esc(phone)], ["link", "ID Telegram", `<code>${esc(tgId)}</code>`], ["box", "Kategori", `<b>${esc(category)}</b>`], ["chart", "Harga", `<b>${rp(price)}</b>`], ["gem", "PIN 2FA", st.password ? "Tersimpan" : "Tidak ada"]],
-      note: "Akun sudah tampil di menu BELI NOKTEL dan sesinya disimpan bot.",
+      note: "Akun sudah tampil di menu BELI NOKTEL dan sesinya disimpan bot. Notifikasi stok baru dikirim ke pengguna &amp; channel (bila aktif).",
     }), (fancy) => [[btn(fancy, "Tambah Lagi", "nk:oa", "success", UI.E.rocket)], [btn(fancy, "Kelola Noktel", "nk:om", "primary", UI.E.gem)]]);
   } catch (err) {
     let m = errMsg(err);
@@ -640,11 +647,13 @@ function manageCard() {
       ["chart", "Total saldo pengguna", `<b>${rp(Object.values(S.balances).reduce((n, v) => n + (Number(v) || 0), 0))}</b>`],
     ],
     checks: [[true, "Tambah stok: nomor, kode login, PIN 2FA, kategori, harga"], [true, "Akun disimpan bot dan tampil di menu BELI NOKTEL"]],
-    note: "Perintah cepat: <code>/addnoktel</code> \u00B7 <code>/listnoktel</code> \u00B7 <code>/delnoktel ID</code> \u00B7 <code>/addsaldonk ID JUMLAH</code>",
+    note: "Perintah cepat: <code>/addnoktel</code> \u00B7 <code>/listnoktel</code> \u00B7 <code>/delnoktel ID</code> \u00B7 <code>/addsaldo ID JUMLAH</code> \u00B7 <code>/delsaldo ID JUMLAH</code> \u00B7 <code>/batalnk NKO-0001</code>",
   });
   const kb = (fancy) => [
     [btn(fancy, "Tambah Stok Noktel", "nk:oa", "success", UI.E.rocket)],
     pair(btn(fancy, "Daftar Stok", "nk:ol:0", "primary", UI.E.box), btn(fancy, "Menu Pembeli", "nk:h", "primary", UI.E.gem)),
+    [btn(fancy, `Pesanan Pembeli (${activeOrders().length} aktif)`, "nk:op:0", "danger", UI.E.time)],
+    [btn(fancy, "Kelola Saldo Pengguna", "sal:m", "primary", UI.E.chart)],
     [btn(fancy, "Kembali", "own", "plain", UI.E.wave)],
   ];
   return { c, kb };
@@ -676,6 +685,92 @@ async function deleteStock(id) {
   delete S.accounts[a.id];
   save();
   return a;
+}
+
+// ---------------------------------------------------------------- owner: pesanan pembeli + batalkan pesanan
+const activeOrders = () => Object.values(S.orders).filter((o) => o.status === "wait" || o.status === "paid").sort((a, b) => b.no - a.no);
+const parseOrdNo = (s) => { const m = String(s || "").trim().match(/^(?:NKO-?)?0*(\d+)$/i); return m ? Number(m[1]) : null; };
+function ordersCard(pg) {
+  const list = Object.values(S.orders).filter((o) => o.status !== "creating").sort((a, b) => b.no - a.no);
+  const act = list.filter((o) => o.status === "wait" || o.status === "paid");
+  const show = [...act, ...list.filter((o) => !(o.status === "wait" || o.status === "paid"))];
+  const pages = Math.max(1, Math.ceil(show.length / PAGE));
+  const p = Math.min(Math.max(0, pg), pages - 1);
+  const slice = show.slice(p * PAGE, (p + 1) * PAGE);
+  const who = (o) => (o.username ? "@" + o.username : clip(o.name || o.userId, 16));
+  const c = UI.card({
+    title: `Pesanan Pembeli (${act.length} aktif)`, icon: "time", headers: ["Pesanan \u00B7 Status", "Pembeli \u00B7 Kategori \u00B7 Harga"],
+    sub: "Pesanan <b>aktif</b> (menunggu bayar / sudah dibayar) di atas. Tekan pesanan untuk detail &amp; <b>batalkan</b>.",
+    rows: slice.length ? slice.map((o) => ["tag", `<code>${ordId(o.no)}</code> \u00B7 ${OL[o.status] || o.status}`, `${esc(who(o))} \u00B7 ${esc(clip(o.category, 16))} \u00B7 ${rp(o.price)}`]) : [["info", "Pesanan", "Belum ada"]],
+    note: pages > 1 ? `Halaman ${p + 1} dari ${pages} \u00B7 Cepat: <code>/batalnk NKO-0001</code>` : "Cepat: <code>/batalnk NKO-0001</code>",
+  });
+  const kb = (fancy) => [
+    ...slice.filter((o) => o.status === "wait" || o.status === "paid").map((o) => [btn(fancy, `${ordId(o.no)} \u00B7 ${clip(who(o), 14)} \u00B7 ${OL[o.status]}`, `nk:ov:${o.no}`, o.status === "paid" ? "success" : "primary", UI.E.tag)]),
+    ...(pages > 1 ? [pair(btn(fancy, "\u25C0\uFE0F Prev", `nk:op:${(p - 1 + pages) % pages}`, "primary"), btn(fancy, "Next \u25B6\uFE0F", `nk:op:${(p + 1) % pages}`, "primary"))] : []),
+    [btn(fancy, "Kembali", "nk:om", "plain", UI.E.wave)],
+  ];
+  return { c, kb };
+}
+function orderDetailCard(o) {
+  const a = S.accounts[o.accId];
+  const c = UI.card({
+    title: `Pesanan ${ordId(o.no)}`, icon: "tag",
+    rows: [
+      ["user", "Pembeli", `<b>${esc(o.name || "-")}</b>${o.username ? " (@" + esc(o.username) + ")" : ""}`],
+      ["link", "ID Pembeli", `<code>${esc(o.userId)}</code>`],
+      ["gem", "Noktel", `<code>${nkId(o.accId)}</code> \u00B7 ${esc(a ? a.phone : o.phoneMask || "-")}`],
+      ["box", "Kategori", esc(clip(o.category, 40))],
+      ["chart", "Harga", `<b>${rp(o.price)}</b> (${o.method === "saldo" ? "saldo" : "QRIS"})${o.disc && o.disc.cut ? ` \u00B7 diskon ${rp(o.disc.cut)}` : ""}`],
+      ["bolt", "Status", `<b>${OL[o.status] || o.status}</b>${o.loggedIn ? " \u00B7 pembeli sudah login" : ""}`],
+      ["time", "Dibuat", esc(fmtTime(o.createdAt))],
+    ],
+    note: o.status === "wait" ? "Pesanan masih menunggu pembayaran QRIS. Batalkan = QRIS dibatalkan, stok dilepas kembali." :
+      o.status === "paid" ? "\u26A0\uFE0F Pesanan sudah dibayar dan data akun sudah dikirim ke pembeli. Pilih cara pembatalan di bawah." : "Pesanan ini sudah tidak aktif.",
+  });
+  const kb = (fancy) => [
+    ...(o.status === "wait" ? [[btn(fancy, "Batalkan Pesanan", `nk:oc:${o.no}:w`, "danger", UI.E.no)]] : []),
+    ...(o.status === "paid" ? [
+      [btn(fancy, "Batal + Refund Saldo + Akun Kembali ke Stok", `nk:oc:${o.no}:rs`, "danger", UI.E.no)],
+      [btn(fancy, "Batal + Refund Saldo (akun dihapus)", `nk:oc:${o.no}:r`, "danger", UI.E.no)],
+      [btn(fancy, "Batal Tanpa Refund (akun dihapus)", `nk:oc:${o.no}:n`, "danger", UI.E.no)],
+    ] : []),
+    [btn(fancy, "Pesanan Pembeli", "nk:op:0", "plain", UI.E.wave)],
+  ];
+  return { c, kb };
+}
+const CANCEL_MODE = { w: "Batalkan pesanan menunggu bayar", rs: "Refund ke saldo + akun kembali ke stok", r: "Refund ke saldo, akun dihapus dari stok", n: "Tanpa refund, akun dihapus dari stok" };
+// mode: w (menunggu bayar) | rs | r | n (sudah dibayar) -> { ok, why, refund }
+async function cancelByOwner(no, mode) {
+  const o = S.orders[no];
+  if (!o) return { ok: false, why: "Pesanan tidak ditemukan" };
+  if (o.status === "wait") {
+    try { const t = o.txId && gw.get(o.txId); if (t) await gw.cancelTx(t); } catch (e) { console.error("[noktel] batal (owner) di gateway:", e.message); }
+    await endOrder(o.no, "cancelled", true);
+    fire("nkcancel", o, [["Pesanan", `<code>${ordId(o.no)}</code>`], ["Kategori", `<b>${esc(o.category)}</b>`], ["Harga", rp(o.price)], ["Cara", CANCEL_MODE.w]]);
+    return { ok: true, refund: 0 };
+  }
+  if (o.status !== "paid") return { ok: false, why: `Pesanan sudah ${OL[o.status] || o.status}` };
+  if (!["rs", "r", "n"].includes(mode)) return { ok: false, why: "Pilih cara pembatalan" };
+  listening.delete(o.no);
+  const a = S.accounts[o.accId];
+  const refund = mode === "n" ? 0 : Math.round(o.price);
+  if (a) {
+    const within = (p) => Promise.race([p, sleep(20000).then(() => { throw new Error("timeout"); })]); // jaringan akun lambat: jangan tahan pembatalan
+    if (mode === "rs") { a.status = "ready"; delete a.orderNo; delete a.soldAt; save(); try { const h = await within(getClient(a).then(history)); a.baseMsgId = Math.max(Number(a.baseMsgId) || 0, ...h.map((m) => m.id || 0)); } catch (_) {} }
+    else { delete S.accounts[a.id]; save(); try { await within(getClient(a).then((c) => c.invoke(new Api.auth.LogOut()))); } catch (_) {} await dropClient(a.id).catch(() => {}); }
+  }
+  o.status = "cancel_owner"; o.cancelAt = Date.now(); o.cancelMode = mode; o.refund = refund;
+  delete o.baseAuth;
+  save();
+  if (refund) addBal(o.userId, refund);
+  await UI.sendCard(o.userId, UI.card({
+    title: "Pesanan Dibatalkan Owner", icon: "no",
+    rows: [["tag", "Pesanan", `<code>${ordId(o.no)}</code>`], ["box", "Kategori", esc(clip(o.category, 40))], ["chart", "Harga", rp(o.price)], ["bolt", "Refund", refund ? `<b>${rp(refund)}</b> ke saldo (saldo sekarang ${rp(bal(o.userId))})` : "Tidak ada"]],
+    note: "Pesanan noktel Anda dibatalkan oleh owner dan data akun sudah tidak bisa dipakai lagi dari bot. Hubungi owner bila ada pertanyaan.",
+  }), menuKbBack).catch(() => {});
+  fire("nkcancel", o, [["Pesanan", `<code>${ordId(o.no)}</code>`], ["Kategori", `<b>${esc(o.category)}</b>`], ["Harga", rp(o.price)], ["Cara", CANCEL_MODE[mode]], ["Refund", refund ? rp(refund) : "Tidak"]]);
+  if (mode === "rs" && a) { try { require("./autonotif").newStock(a, true); } catch (_) {} }
+  return { ok: true, refund };
 }
 
 // ---------------------------------------------------------------- pendaftaran
@@ -784,16 +879,18 @@ function register(bot) {
     if (act === "y") {
       const a = S.accounts[a1];
       if (!a || a.status !== "ready") return alert(ctx, "Noktel ini sudah tidak tersedia.");
-      if (bal(uid) < a.price) return alert(ctx, `Saldo kurang. Saldo ${rp(bal(uid))}, harga ${rp(a.price)}. Isi saldo dulu atau bayar QRIS.`);
+      const dc = discOf(uid, a.price);
+      if (bal(uid) < dc.final) return alert(ctx, `Saldo kurang. Saldo ${rp(bal(uid))}, harga ${rp(dc.final)}. Isi saldo dulu atau bayar QRIS.`);
       // sinkron (tanpa await) antara cek stok dan potong saldo -> tidak bisa terjual dua kali
-      takeBal(uid, a.price);
+      takeBal(uid, dc.final);
       const no = ++S.seq.ord;
-      const o = { no, userId: String(uid), name: fullName(ctx.from), username: ctx.from.username || null, accId: a.id, category: a.category, phoneMask: mask(a.phone), price: a.price, method: "saldo", status: "paid", createdAt: Date.now(), paidAt: Date.now() };
+      const o = { no, userId: String(uid), name: fullName(ctx.from), username: ctx.from.username || null, accId: a.id, category: a.category, phoneMask: mask(a.phone), price: dc.final, ...(dc.cut ? { disc: { code: dc.code, cut: dc.cut, orig: a.price } } : {}), method: "saldo", status: "paid", createdAt: Date.now(), paidAt: Date.now() };
       S.orders[no] = o;
       a.status = "sold"; a.orderNo = no; a.soldAt = Date.now();
       save();
+      consumeDisc(o);
       await ctx.answerCallbackQuery({ text: "Pembelian berhasil \u2705" });
-      fire("nkbuy", o, [["Pesanan", `<code>${ordId(no)}</code>`], ["ID Noktel", `<code>${nkId(a.id)}</code>`], ["Kategori", `<b>${esc(a.category)}</b>`], ["Harga", `<b>${rp(a.price)}</b>`], ["Metode", "Saldo noktel"]]);
+      fire("nkbuy", o, [["Pesanan", `<code>${ordId(no)}</code>`], ["ID Noktel", `<code>${nkId(a.id)}</code>`], ["Kategori", `<b>${esc(a.category)}</b>`], ["Harga", `<b>${rp(o.price)}</b>${dc.cut ? ` (diskon ${rp(dc.cut)} \u00B7 ${esc(dc.code)})` : ""}`], ["Metode", "Saldo noktel"]]);
       return finalizeSale(o, a);
     }
     if (act === "k" || act === "x") { // cek status / batal pesanan QRIS
@@ -822,6 +919,7 @@ function register(bot) {
       if (!o || String(o.userId) !== String(uid)) return alert(ctx, "Pesanan tidak ditemukan.");
       const a = S.accounts[o.accId];
       if (o.status === "done") return alert(ctx, "Pesanan ini sudah selesai (logout). Data akun sudah dihapus.");
+      if (o.status === "cancel_owner") return alert(ctx, "Pesanan ini sudah dibatalkan oleh owner.");
       if (o.status !== "paid" || !a) return alert(ctx, "Pesanan ini belum aktif.");
       if (act === "o") { await ctx.answerCallbackQuery().catch(() => {}); const ac = accountCard(o, a); return UI.sendCard(m.chat.id, ac.c, ac.kb); }
       if (act === "otp") {
@@ -865,8 +963,32 @@ function register(bot) {
     }
 
     // ---------- owner ----------
-    if (["om", "oa", "ol", "od", "ody", "wc", "wcat", "wpr"].includes(act)) {
+    if (["om", "oa", "ol", "od", "ody", "wc", "wcat", "wpr", "op", "ov", "oc", "ocy"].includes(act)) {
       if (!isOwner(uid)) return alert(ctx, "Khusus owner.");
+      if (act === "op") { const c = ordersCard(Number(a1) || 0); return show(c.c, c.kb); }
+      if (act === "ov") {
+        const o = S.orders[a1];
+        if (!o) return alert(ctx, "Pesanan tidak ditemukan.");
+        const c = orderDetailCard(o); return show(c.c, c.kb);
+      }
+      if (act === "oc") {
+        const o = S.orders[a1];
+        if (!o || !(o.status === "wait" || o.status === "paid")) return alert(ctx, "Pesanan sudah tidak aktif.");
+        const mode = o.status === "wait" ? "w" : a2;
+        return show(UI.card({
+          title: "Batalkan Pesanan?", icon: "fire",
+          rows: [["tag", "Pesanan", `<code>${ordId(o.no)}</code>`], ["user", "Pembeli", `${esc(o.name || "-")} \u00B7 <code>${esc(o.userId)}</code>`], ["chart", "Harga", rp(o.price)], ["bolt", "Cara", esc(CANCEL_MODE[mode] || "-")]],
+          note: "Pembeli akan menerima pemberitahuan pembatalan.",
+        }), (fancy) => [pair(btn(fancy, "Ya, Batalkan", `nk:ocy:${o.no}:${mode}`, "danger", UI.E.no), btn(fancy, "Kembali", `nk:ov:${o.no}`, "primary", UI.E.wave))]);
+      }
+      if (act === "ocy") {
+        await ctx.answerCallbackQuery({ text: "Membatalkan..." }).catch(() => {});
+        const r = await cancelByOwner(Number(a1), a2).catch((e) => ({ ok: false, why: e.message }));
+        return UI.editCard(ref, UI.card({
+          title: r.ok ? "Pesanan Dibatalkan" : "Gagal Membatalkan", icon: r.ok ? "ok" : "no",
+          rows: [["tag", "Pesanan", `<code>${ordId(a1)}</code>`], ...(r.ok ? [["chart", "Refund", r.refund ? `<b>${rp(r.refund)}</b> ke saldo pembeli` : "Tidak ada"], ["bolt", "Cara", esc(CANCEL_MODE[a2] || "-")]] : [["no", "Sebab", esc(r.why)]])],
+        }), (fancy) => [[btn(fancy, "Pesanan Pembeli", "nk:op:0", "primary", UI.E.time)]]);
+      }
       if (act === "om") { const c = manageCard(); return show(c.c, c.kb); }
       if (act === "oa") { await ctx.answerCallbackQuery().catch(() => {}); runAdd(m.chat.id, uid); return; }
       if (act === "ol") { const c = listCard(Number(a1) || 0); return show(c.c, c.kb); }
@@ -912,7 +1034,8 @@ function register(bot) {
     if (w) return alert(ctx, `Anda masih punya pembayaran menunggu (${ordId(w.no)}). Selesaikan atau tekan Batal dulu.`);
     // pesan stok dulu (sinkron) supaya tidak dibeli orang lain selama QRIS berjalan
     const no = ++S.seq.ord;
-    const o = { no, userId: String(uid), name: fullName(ctx.from), username: ctx.from.username || null, accId: a.id, category: a.category, phoneMask: mask(a.phone), price: a.price, method: "qris", status: "creating", createdAt: Date.now() };
+    const dc = discOf(uid, a.price);
+    const o = { no, userId: String(uid), name: fullName(ctx.from), username: ctx.from.username || null, accId: a.id, category: a.category, phoneMask: mask(a.phone), price: dc.final, ...(dc.cut ? { disc: { code: dc.code, cut: dc.cut, orig: a.price } } : {}), method: "qris", status: "creating", createdAt: Date.now() };
     S.orders[no] = o;
     a.status = "reserved"; a.orderNo = no;
     save();
@@ -921,7 +1044,7 @@ function register(bot) {
 
     let r;
     try {
-      r = await gw.create(creds(), { userId: ownerId(), amount: a.price, note: `Noktel ${nkId(a.id)} - ${ctx.from.username ? "@" + ctx.from.username : o.name} (${uid})`, chat: String(uid) });
+      r = await gw.create(creds(), { userId: ownerId(), amount: o.price, note: `Noktel ${nkId(a.id)} - ${ctx.from.username ? "@" + ctx.from.username : o.name} (${uid})`, chat: String(uid) });
     } catch (e) {
       release("cancel");
       console.error("[noktel] buat QRIS gagal:", e.message);
@@ -940,10 +1063,10 @@ function register(bot) {
     const caption = `<b>QRIS ${esc(clip(o.category, 30))} \u00B7 ${nkId(a.id)}</b>\n\u26A1 Total bayar: <b>${rp(r.total || r.amount)}</b>${r.provider === "manual" ? `\n\uD83D\uDFE2 Scan QRIS ini, bayar <b>tepat</b> sesuai total, lalu <b>kirim screenshot bukti bayar ke chat ini</b>.\n\u23F3 Data akun setelah owner mengonfirmasi (ACCEPT).` : `\n\uD83D\uDFE2 Scan QR ini \u2014 data akun dikirim <b>otomatis</b> setelah lunas.\n\u2757 Bayar <b>persis</b> sesuai total (sudah termasuk ${r.provider === "austin" ? "biaya & kode unik" : "kode unik"}).`}`;
     const sent = await sendQr(ref.chat_id, img, caption, waitKb);
     if (sent) { o.qrMsg = { chat_id: ref.chat_id, message_id: sent.message_id }; save(); }
-    fire("nkbuy", o, [["Pesanan", `<code>${ordId(no)}</code>`], ["ID Noktel", `<code>${nkId(a.id)}</code>`], ["Kategori", `<b>${esc(a.category)}</b>`], ["Harga", `<b>${rp(a.price)}</b>`], ["Metode", "QRIS (menunggu bayar)"]]);
+    fire("nkbuy", o, [["Pesanan", `<code>${ordId(no)}</code>`], ["ID Noktel", `<code>${nkId(a.id)}</code>`], ["Kategori", `<b>${esc(a.category)}</b>`], ["Harga", `<b>${rp(o.price)}</b>${dc.cut ? ` (diskon ${rp(dc.cut)} \u00B7 ${esc(dc.code)})` : ""}`], ["Metode", "QRIS (menunggu bayar)"]]);
     return UI.editCard(ref, UI.card({
       title: "Menunggu Pembayaran", icon: "time",
-      rows: [["tag", "Pesanan", `<code>${ordId(no)}</code>`], ["gem", "Noktel", `<b>${nkId(a.id)}</b> \u00B7 ${esc(clip(a.category, 24))}`], ["chart", "Harga", rp(r.amount)], ["bolt", "Total bayar", `<b>${rp(r.total || r.amount)}</b>`], ...(r.expiredAt ? [["time", `Kedaluwarsa (${esc(TZL)})`, esc(fmtTime(r.expiredAt))]] : [])],
+      rows: [["tag", "Pesanan", `<code>${ordId(no)}</code>`], ["gem", "Noktel", `<b>${nkId(a.id)}</b> \u00B7 ${esc(clip(a.category, 24))}`], ["chart", "Harga", rp(r.amount)], ...(dc.cut ? [["tag", "Diskon", `<code>${esc(dc.code)}</code> \u2212${rp(dc.cut)}`]] : []), ["bolt", "Total bayar", `<b>${rp(r.total || r.amount)}</b>`], ...(r.expiredAt ? [["time", `Kedaluwarsa (${esc(TZL)})`, esc(fmtTime(r.expiredAt))]] : [])],
       checks: [[true, "Scan QRIS pada gambar di bawah"], [false, r.provider === "manual" ? "Kirim screenshot bukti bayar ke chat ini, lalu tunggu konfirmasi owner" : "Tunggu \u2014 data akun dikirim otomatis setelah lunas"]],
       note: sent ? "Noktel ini dipesan untuk Anda selama QRIS aktif." : "QR gagal dimuat. Tekan Cek Status setelah membayar.",
     }), sent ? null : waitKb);
@@ -1046,6 +1169,16 @@ function register(bot) {
     try { a = await deleteStock(id); } catch (e) { err = e.message; }
     return sendTo(ctx, UI.card({ title: a ? "Stok Dihapus" : "Tidak Ditemukan", icon: a ? "ok" : "no", rows: [["tag", "ID Noktel", a ? `<code>${nkId(a.id)}</code>` : esc(id)], ...(err ? [["no", "Sebab", esc(err)]] : [])] }));
   }));
+  bot.command("batalnk", guard(async (ctx) => {
+    const [noArg, modeArg] = String(ctx.match || "").trim().split(/\s+/);
+    const no = parseOrdNo(noArg);
+    const o = no && S.orders[no];
+    if (!o) return sendTo(ctx, UI.card({ title: "Cara Pakai", icon: "gear", rows: [["tag", "Pakai", "<code>/batalnk NKO-0001 [refund|stok|norefund]</code>"], ["info", "Cara", "<b>refund</b> = refund saldo, akun dihapus \u00B7 <b>stok</b> = refund saldo + akun kembali ke stok \u00B7 <b>norefund</b> = tanpa refund"], ["box", "Lihat pesanan", "PANEL OWNER \u203A Kelola Noktel \u203A Pesanan Pembeli"]] }));
+    if (o.status === "paid" && !modeArg) { const c = orderDetailCard(o); return sendTo(ctx, c.c, c.kb); }
+    const mode = o.status === "wait" ? "w" : /^stok|restock/i.test(modeArg) ? "rs" : /^no|tanpa/i.test(modeArg) ? "n" : "r";
+    const r = await cancelByOwner(no, mode).catch((e) => ({ ok: false, why: e.message }));
+    return sendTo(ctx, UI.card({ title: r.ok ? "Pesanan Dibatalkan" : "Gagal Membatalkan", icon: r.ok ? "ok" : "no", rows: [["tag", "Pesanan", `<code>${ordId(no)}</code>`], ...(r.ok ? [["chart", "Refund", r.refund ? rp(r.refund) : "Tidak ada"], ["bolt", "Cara", esc(CANCEL_MODE[mode])]] : [["no", "Sebab", esc(r.why)]])] }));
+  }));
   bot.command("addsaldonk", guard(async (ctx) => {
     const [uidArg, amtArg] = String(ctx.match || "").trim().split(/\s+/);
     const n = Number(String(amtArg || "").replace(/[^\d-]/g, ""));
@@ -1056,4 +1189,9 @@ function register(bot) {
   }));
 }
 
-module.exports = { register, _S: () => S, _completeOrder: completeOrder, _parseCode: parseCode };
+module.exports = {
+  register, bal, addBal, takeBal, cats, readyAccs, minPrice, nkId, rp, menuCard, menuKbBack, cancelByOwner,
+  allBalances: () => ({ ...S.balances }),
+  setBal(uid, n) { S.balances[String(uid)] = Math.max(0, Math.round(Number(n) || 0)); save(); return bal(uid); },
+  _S: () => S, _completeOrder: completeOrder, _parseCode: parseCode,
+};

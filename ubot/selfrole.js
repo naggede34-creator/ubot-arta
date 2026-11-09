@@ -118,6 +118,7 @@ function payCard(o, r, note) {
     ["tag", "Invoice", `<code>${esc(inv(o.no))}</code>`],
     [tierIcon[o.paket], "Role", `<b>${esc(o.paket)}</b>${o.mode === "buy" && o.days > 0 ? ` \u00B7 ${o.days} hari` : ""}`],
     ["chart", "Harga", rp(r.amount)],
+    ...(o.disc && o.disc.cut ? [["tag", "Diskon", `<code>${esc(o.disc.code)}</code> \u2212${rp(o.disc.cut)} (harga asli ${rp(o.disc.orig)})`]] : []),
     ...(r.provider === "manual" ? [] : [["box", r.provider === "austin" ? "Biaya + kode unik" : "Kode unik", rp(r.fee || 0)]]),
     ["bolt", "Total bayar", `<b>${rp(r.total || r.amount)}</b>`],
     ...(r.expiredAt ? [["time", `Kedaluwarsa (${esc(TZL)})`, esc(fmtTime(r.expiredAt))]] : []),
@@ -187,6 +188,7 @@ async function completeOrder(no) {
   o.status = "gw_paid"; // tukar dulu supaya panggilan kedua (hook + cek manual) tidak mengaktifkan dua kali
   o.paidAt = Date.now();
   db.setOrder(no, o);
+  if (o.disc && o.disc.code) { try { require("./voucher").consume(o.userId, o.disc.code); } catch (_) {} }
 
   const uid = String(o.userId);
   if (o.paket === "RESELLER") return completeReseller(o, uid);
@@ -314,14 +316,16 @@ function register(bot, opts = {}) {
     if (waitingOrder(uid)) return alert(ctx, "Anda masih punya pembayaran yang menunggu. Selesaikan atau tekan Batal dulu.");
     const cr = creds();
     const p = isTk ? conf().tk : isRsl ? conf().reseller : conf().prices[tier];
-    await ctx.answerCallbackQuery({ text: "Membuat QRIS..." }).catch(() => {});
+    let dc = { final: p.price, cut: 0, code: null };
+    try { dc = require("./voucher").priceFor(uid, p.price, "role"); } catch (_) {}
+    await ctx.answerCallbackQuery({ text: dc.cut ? `Diskon ${dc.code} dipakai. Membuat QRIS...` : "Membuat QRIS..." }).catch(() => {});
 
     let no, o;
     try {
       no = db.nextReqNo();
       o = {
         no, kind: "selfrole", mode, userId: uid, name: fullName(ctx.from), username: ctx.from.username || null,
-        paket: tier, days: p.days, price: p.price, method: "gateway", status: "gw_creating", createdAt: Date.now(),
+        paket: tier, days: p.days, price: dc.final, ...(dc.cut ? { disc: { code: dc.code, cut: dc.cut, orig: p.price } } : {}), method: "gateway", status: "gw_creating", createdAt: Date.now(),
       };
       db.setOrder(no, o);
     } catch (e) {
@@ -332,7 +336,7 @@ function register(bot, opts = {}) {
     let r;
     try {
       // userId = owner supaya pemantauan gateway memakai kredensial owner; notifikasi "pembayaran diterima" ikut masuk ke owner
-      r = await gw.create(cr, { userId: ownerId(), amount: p.price, note: `${MODE_NAME[mode]} ${tier} - ${ctx.from.username ? "@" + ctx.from.username : o.name} (${uid})`, chat: uid });
+      r = await gw.create(cr, { userId: ownerId(), amount: o.price, note: `${MODE_NAME[mode]} ${tier} - ${ctx.from.username ? "@" + ctx.from.username : o.name} (${uid})`, chat: uid });
     } catch (e) {
       o.status = "gw_cancel";
       db.setOrder(no, o);

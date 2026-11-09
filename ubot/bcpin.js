@@ -336,4 +336,4 @@ function register(bot) {
   });
 }
 
-module.exports = { register, track, ensure, menuCard, menuKb, targets, knownCount, blockedCount: () => Object.keys(store.blocked).length };
+module.exports = { register, track, ensure, menuCard, menuKb, targets, knownCount, blockedCount: () => Object.keys(store.blocked).length, isGone, markGone: (uid) => { store.blocked[String(uid)] = Date.now(); touch(); } };

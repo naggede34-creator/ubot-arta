@@ -1,6 +1,6 @@
 {
   "name": "ubot-arta-pedia",
-  "version": "1.21.0",
+  "version": "1.28.0",
   "description": "UBOT ARTA PEDIA - Telegram userbot + bot kawalan (ARTA PEDIA ID)",
   "main": "bot.js",
   "scripts": {

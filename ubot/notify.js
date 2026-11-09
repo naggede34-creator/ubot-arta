@@ -23,6 +23,9 @@ const E = {
   nkpaid: ["6273839444311149115", "\uD83D\uDC8E", "Noktel Berhasil Dibeli"],
   nklogin: ["5416081784641168838", "\uD83D\uDFE2", "Pembeli Sudah Login"],
   nkdone: ["5260726538302660868", "\uD83C\uDFC1", "Noktel Selesai (Logout)"],
+  nkcancel: ["5316999925664347033", "\u274C", "Pesanan Noktel Dibatalkan Owner"],
+  voucher: ["6276228098962754124", "\uD83C\uDF81", "Kode Voucher Diklaim"],
+  saldo: ["5231200819986047254", "\uD83D\uDCB0", "Saldo Diubah Owner"],
 };
 const rp = (n) => "Rp" + String(Math.round(Number(n) || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, ".");
 
@@ -53,6 +56,9 @@ const DESC = {
   nkpaid: "Pembayaran noktel lunas, data akun dikirim otomatis ke pembeli.",
   nklogin: "Pembeli sudah berhasil login ke akun noktel yang dibeli.",
   nkdone: "Pembeli menekan Logout, data akun dihapus dari bot (sold out).",
+  nkcancel: "Owner membatalkan pesanan noktel pengguna.",
+  voucher: "Pengguna mengklaim kode voucher / hadiah / diskon lewat tombol Redeem.",
+  saldo: "Owner menambah / mengurangi saldo pengguna.",
 };
 const safe = (fn, d = null) => { try { const v = fn(); return v === undefined ? d : v; } catch (_) { return d; } };
 const yesno = (v) => (v ? "Ya" : "Tidak");

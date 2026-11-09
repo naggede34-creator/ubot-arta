@@ -94,6 +94,7 @@ async function tg(method, payload) {
   const tok = st && st.token;
   const plain = !!(st && st.plain) || (tok && isPlainTok(tok));
   const usePremium = premiumOn() && !plain;
+  if (!tok) { try { payload = require("./btnlayout").apply(payload); } catch (_) {} } // nama tombol / tombol disembunyikan (atur-an owner, semua menu)
   if (!tok) { try { payload = require("./btncolor").apply(payload); } catch (_) {} } // warna tombol atur-an owner (bot utama)
   try {
     return await tgSend(method, usePremium ? payload : scrubPremium(payload));

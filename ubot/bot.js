@@ -164,19 +164,32 @@ const claimUrl = () => {
 const bannerId = () => db.getSetting("start_banner") || cfg.start_banner || null;
 const bannerMedia = () => { const id = bannerId(); return id ? [{ id: "banner", media: { type: "photo", media: id } }] : null; };
 
+// Tombol dashboard: id -> definisi. Susunan, nama, sembunyikan, dan tombol tambahan diatur owner lewat PANEL OWNER > Atur Tombol (btnlayout.js).
+const BL = require("./btnlayout");
+const HOME_ROWS = [["create"], ["help", "buysc"], ["prd", "prof"], ["guide", "role", "live"], ["uprole", "redeem"], ["nk"], ["shop"], ["menu"]];
+function homeDefs() {
+  const srOn = SR.conf().enabled;
+  return {
+    create: { label: "Buat Ubot", data: "create", icon: I.gear, style: "success" },
+    help: { label: "Lihat Tampilan Ubot", data: "help", icon: I.search, style: "primary" },
+    buysc: { label: "BELI SC", data: "buysc", icon: S.gem, style: "success" },
+    prd: { label: "PRODUK LAINNYA", data: "prd:l:0", icon: S.box, style: "primary" },
+    prof: { label: "Profil Saya", data: "prof", icon: S.user, style: "plain" },
+    guide: { label: "Panduan", data: "guide", icon: S.mega, style: "plain" },
+    role: { label: "Beli Role", data: "sr:m", icon: S.crown, style: "primary", show: srOn },
+    live: { label: "Live Chat", data: "live", icon: I.chat, style: "primary", show: !srOn },
+    uprole: { label: "Up Role", data: "sr:up", icon: S.rocket, style: "primary", show: srOn },
+    redeem: { label: "Redeem Kode", data: "vc:r", icon: S.tag, style: "success" },
+    nk: { label: "BELI NOKTEL TELEGRAM SIAP PAKAI", data: "nk:h", icon: S.gem, style: "success" },
+    shop: { label: cfg.shop_label || "BUY NOKOS MURAH KLIK INI", url: String(cfg.shop_url || "https://www.tokonokosarta.my.id/"), icon: I.gem, style: "success" },
+    menu: { label: "Menu Lainnya", data: "menu", icon: S.box, style: "plain" },
+  };
+}
+BL.setHome(homeDefs, HOME_ROWS);
+
 function homeKb(fancy, u) {
   const b = (text, data, icon, style) => btn(fancy, text, data, style, icon);
-  const srOn = SR.conf().enabled;
-  const rows = [];
-  rows.push([b("Buat Ubot", "create", I.gear, "success")]);
-  // Lihat Tampilan Ubot (dulu "Preview"), Beli SC, dan Produk Lainnya langsung tampil di /start
-  rows.push(pair(b("Lihat Tampilan Ubot", "help", I.search, "primary"), b("BELI SC", "buysc", S.gem, "success")));
-  rows.push(pair(b("PRODUK LAINNYA", "prd:l:0", S.box, "primary"), b("Profil Saya", "prof", S.user, "plain")));
-  rows.push(pair(b("Panduan", "guide", S.mega, "plain"), srOn ? b("Beli Role", "sr:m", S.crown, "primary") : b("Live Chat", "live", I.chat, "primary")));
-  if (srOn) rows.push([b("Up Role", "sr:up", S.rocket, "primary")]);
-  rows.push([b("BELI NOKTEL TELEGRAM SIAP PAKAI", "nk:h", S.gem, "success")]);
-  rows.push([{ text: cfg.shop_label || "BUY NOKOS MURAH KLIK INI", url: String(cfg.shop_url || "https://www.tokonokosarta.my.id/"), ...(fancy ? { style: "success", icon_custom_emoji_id: I.gem } : {}) }]);
-  rows.push([b("Menu Lainnya", "menu", S.box, "plain")]);
+  const rows = BL.render(fancy, u);
   // baris panel (merah): owner -> PANEL OWNER; reseller / tangan kanan -> panelnya; admin ubot -> CONTROL UBOT
   if (u && access.isOwner(u.id)) rows.push([b("PANEL OWNER", "own", S.owner, "danger")]);
   else {
@@ -236,6 +249,7 @@ function buildHome(u, { simple = false, media = false } = {}) {
     [S.gem, "Paket", `<b>${A.paket}</b>`],
     [A.online ? S.green : S.no, "Userbot", A.online ? "<b>TERHUBUNG</b>" : "<b>BELUM TERHUBUNG</b>"],
     [S.time, "Expired", `<b>${esc(expiry.label(u.id))}</b>`],
+    [S.bolt, "Saldo", `<b>${esc(NK.rp(NK.bal(u.id)))}</b>`],
   ];
   const row = ([id, label, val]) => `<tr><td>${emo(id)} ${label}</td><td>${val}</td></tr>`;
 
@@ -255,6 +269,7 @@ function buildHome(u, { simple = false, media = false } = {}) {
     ["Buat Ubot", `jadikan akun Telegram Anda sebuah userbot (nomor telepon, kode OTP, dan password 2FA bila aktif).`],
     ["Beli Role / Up Role", "bayar QRIS, role aktif otomatis dalam hitungan detik."],
     ["Beli Noktel", "akun Telegram siap pakai: isi saldo / bayar QRIS, akun dan PIN 2FA dikirim otomatis, kode OTP diteruskan bot."],
+    ["Redeem Kode", "klaim kode hadiah saldo atau kode diskon dari owner (juga bisa <code>/redeem KODE</code>)."],
     ["Profil Saya", "lihat role, tanggal expired, prefix, dan status userbot Anda."],
     ["Menu Lainnya", "Preview fitur, Live Chat ke owner, Beli SC, Produk Lainnya, Reset Prefix, Restart Userbot."],
     ["Setelah connect", `perintah userbot dipanggil dari akun Anda dengan awalan <code>${prefix}</code>, misalnya <code>${prefix}help</code>, <code>${prefix}ping</code>, <code>${prefix}bc</code>.`],
@@ -425,6 +440,11 @@ bot.command("start", async (ctx) => {
   } catch (e) {
     console.error("[notify] start:", e.message);
   }
+  // link t.me/bot?start=nk | redeem | role | uprole (dipakai tombol di channel / notifikasi)
+  const pl = String(ctx.match || "").trim().toLowerCase();
+  if (pl === "nk" || pl === "noktel") { const mc = NK.menuCard(ctx.from.id); await UI.sendCard(ctx.chat.id, mc.c, mc.kb); BC.ensure(ctx.from.id); return; }
+  if (pl === "redeem") { await UI.sendCard(ctx.chat.id, UI.card({ title: "Redeem Kode", icon: "gem", sub: "Tekan tombol di bawah lalu kirim kode Anda, atau ketik <code>/redeem KODE</code>." }), (fancy) => [[btn(fancy, "Redeem Kode", "vc:r", "success", S.tag)]]); BC.ensure(ctx.from.id); return; }
+  if (pl === "role" || pl === "uprole") { await UI.sendCard(ctx.chat.id, UI.card({ title: pl === "role" ? "Beli Role Ubot" : "Up Role Ubot", icon: "crown", sub: "Role aktif instan setelah bayar QRIS." }), (fancy) => [[btn(fancy, pl === "role" ? "Beli Role" : "Up Role", pl === "role" ? "sr:m" : "sr:up", "success", S.crown)], [btn(fancy, "Buka Dashboard", "home:p:0", "plain", S.wave)]]); BC.ensure(ctx.from.id); return; }
   await openHome(ctx.chat.id, ctx.from);
   BC.ensure(ctx.from.id); // pin broadcast aktif untuk pengguna baru (bila fitur aktif)
 });
@@ -704,7 +724,11 @@ bot.catch((err) => console.error("Ralat bot:", err.message));
   BC.register(bot); // broadcast pin (owner) - sebelum panel owner & Live Chat
   OWNERP.register(bot); // panel owner + /setharga /addown /delown /owners
   QM.register(bot); // Mode QRIS (owner) + bukti bayar manual ACCEPT / REJECT (sebelum NK / PRD / pay yang menangkap pesan)
-  NK.register(bot); // beli noktel: menu pembeli, deposit saldo, OTP, logout + owner /addnoktel /listnoktel /delnoktel /addsaldonk
+  NK.register(bot); // beli noktel: menu pembeli, deposit saldo, OTP, logout + owner /addnoktel /listnoktel /delnoktel /addsaldonk /batalnk
+  require("./voucher").register(bot); // kode voucher / diskon / hadiah saldo + tombol Redeem Kode (/redeem /buatkode /listkode /hapuskode)
+  require("./saldoadm").register(bot); // owner: tambah / kurangi saldo pengguna (/addsaldo /delsaldo /ceksaldo) + /saldo
+  BL.register(bot); // owner: Atur Tombol (ganti nama, pindah, sembunyikan, tambah tombol)
+  require("./autonotif").register(bot); // notif stok baru, info stok berkala ke channel, sapaan + jadwal sholat
   PRD.register(bot); // produk lainnya (owner /addproduk /delproduk) + BELI SC
   RSLP.register(bot); // reseller: /addrole + panel
   // /restartbot (owner): restart seluruh bot; aktif lagi otomatis lewat supervisor
@@ -743,6 +767,7 @@ bot.catch((err) => console.error("Ralat bot:", err.message));
   access.healStaff(); // reseller / tangan kanan lama yang terlanjur LITE -> PLATINUM + bisa buat ubot
   STORE.startAll(); // hidupkan semua bot store reseller
   BACKUP.start(); // autobackup tiap 1 jam ke owner
+  require("./autonotif").start(bot); // jadwal notifikasi otomatis (stok berkala + sapaan + jadwal sholat)
 
   // Hidupkan semula semua userbot yang tersimpan
   manager

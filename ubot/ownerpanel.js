@@ -50,7 +50,8 @@ function panelCard() {
       ["pin", "Banner /start", bannerOn() ? "<b>TERPASANG</b>" : "<i>belum ada</i>"],
     ],
     checks: [[true, "Semua fitur owner ada di tombol di bawah"], [true, "Tekan tombol harga untuk mengubah harga role"]],
-    note: "Perintah cepat: <code>/setharga GOLD 5000 30</code> \u00B7 <code>/addown ID</code> \u00B7 <code>/delown ID</code> \u00B7 <code>/bcpin</code> \u00B7 <code>/setgroup</code> (kirim di group persetujuan)",
+    note: "Perintah cepat: <code>/setharga GOLD 5000 30</code> \u00B7 <code>/addown ID</code> \u00B7 <code>/delown ID</code> \u00B7 <code>/bcpin</code> \u00B7 <code>/setgroup</code> (kirim di group persetujuan)<br>" +
+      "<code>/addsaldo ID JML</code> \u00B7 <code>/delsaldo ID JML</code> \u00B7 <code>/buatkode</code> \u00B7 <code>/listkode</code> \u00B7 <code>/batalnk NKO-0001</code> \u00B7 <code>/notifotomatis</code>",
   });
 }
 const bannerOn = () => !!(db.getSetting("start_banner") || require("./core").cfg.start_banner);
@@ -63,6 +64,8 @@ const panelKb = (fancy) => [
   pair(btn(fancy, "Daftar Owner", "own:list", "primary"), btn(fancy, "Watermark", "own:wm", "primary")),
   pair(btn(fancy, "Control Semua Ubot", "ctl", "primary", UI.E.crown), btn(fancy, "List Ubot Aktif", "ubl:0", "primary", UI.E.user)),
   pair(btn(fancy, "Kelola Produk", "prd:m", "primary", UI.E.box), btn(fancy, "Kelola Noktel", "nk:om", "primary", UI.E.gem)),
+  pair(btn(fancy, "Kelola Saldo", "sal:m", "success", UI.E.chart), btn(fancy, "Kode Voucher / Diskon", "vc:m", "success", UI.E.tag)),
+  pair(btn(fancy, "Atur Tombol", "bl:m", "primary", UI.E.gear), btn(fancy, "Notif Otomatis", "an:m", "primary", UI.E.mega)),
   pair(btn(fancy, "Warna Tombol", "bcl:m", "primary", UI.E.star), btn(fancy, "Mode QRIS", "qm:m", "success", UI.E.gem)),
   pair(btn(fancy, "Pembayaran", "own:pay", "primary", UI.E.gem), btn(fancy, "Set Banner", "own:bn", "primary", UI.E.pin)),
   pair(btn(fancy, "Statistik", "own:st", "primary", UI.E.chart), btn(fancy, "Backup Sekarang", "own:bk", "primary", UI.E.box)),

@@ -1,3 +1,31 @@
+UPDATE v1.28.0 - SALDO OWNER, KODE VOUCHER / DISKON, ATUR TOMBOL, NOTIF STOK & JADWAL SHOLAT, BATALKAN ORDER NOKTEL
+- KELOLA SALDO (owner): PANEL OWNER > Kelola Saldo -> Tambah Saldo / Kurangi Saldo / Cek Saldo / Top Saldo.
+    Perintah: /addsaldo ID JUMLAH · /delsaldo ID JUMLAH · /delsaldo ID all (hapus semua) · /ceksaldo ID (boleh balas / forward pesan orangnya).
+    Pengguna dikabari setiap saldonya diubah; channel notifikasi ikut dikabari. Pengguna: /saldo. Dashboard /start kini menampilkan baris Saldo.
+- KODE VOUCHER / DISKON / HADIAH SALDO (owner): PANEL OWNER > Kode Voucher / Diskon -> Buat Kode Baru (jenis -> kode / acak -> nilai -> kuota -> kedaluwarsa -> berlaku untuk).
+    HADIAH SALDO: saldo langsung masuk ketika diklaim. DISKON: persen (10%) atau nominal (2000), untuk semua / Beli-Up Role / Noktel,
+    otomatis dipotong pada pembelian berikutnya (QRIS maupun saldo) dan baru "habis" setelah pembayaran lunas.
+    Kuota = jumlah orang yang bisa memakai; 1 orang hanya 1x per kode. Kedaluwarsa: 30m · 12j · 7h · 2026-12-31 · 2026-12-31 20:00 · 0 (tanpa batas).
+    Perintah: /buatkode saldo KODE 5000 10 7h · /buatkode diskon KODE 10% 50 24j role · /listkode · /hapuskode KODE.
+    Pengguna klaim lewat tombol [Redeem Kode] (dashboard /start & menu noktel) atau /redeem KODE. Data: data/voucher.json.
+- ATUR TOMBOL (owner): PANEL OWNER > Atur Tombol. Tekan tombol dashboard mana saja -> Ganti Nama · Naik / Turun · Kiri / Kanan · Gabung ke baris atas ·
+    Pisah baris · Warna · Sembunyikan (bisa dimunculkan lagi). [Tambah Tombol] = tombol link (URL) atau tombol teks info sendiri. [Reset Tata Letak].
+    [Ganti Nama Tombol (Semua Menu)] = ganti teks tombol apa saja di bot (mis. "Isi Saldo" -> "Top Up"), atau ketik "hapus" untuk menyembunyikannya.
+    Tombol PANEL OWNER & CHANNEL FEEDBACK selalu di bawah (tidak bisa dihapus). Data: data/db.json (settings.home_layout, settings.btn_rules).
+- NOTIF OTOMATIS (owner): PANEL OWNER > Notif Otomatis (nyala / mati per fitur & per tujuan: pengguna bot / channel).
+    Stok baru: setiap owner menambah stok noktel -> "STOK NOKTEL BARU" ke semua pengguna + channel (penambahan berdekatan digabung, jeda 60 detik).
+    Info stok berkala: tiap 35-40 menit (acak, bisa diubah) ke channel. Stok kosong dikirim maks 1x / 3 jam.
+    Sapaan Pagi 07:00 / Siang 13:00 / Sore 16:30 / Malam 20:30 (/setjamnotif pagi 07:00, atau "off") + pengingat 5 waktu sholat (Subuh, Dzuhur, Ashar,
+    Maghrib, Isya) tepat waktu, berisi jadwal sholat hari ini + ajakan order bergantian (Up Role / Beli Role Ubot / Beli Noktel) dengan tombol order.
+    Jadwal sholat dihitung otomatis tanpa internet (metode Kemenag RI) untuk kota pilihan (/setkota surabaya, 28 kota WIB/WITA/WIT + KL/Singapura).
+    Channel: memakai NOTIFY_CHANNEL_ID, atau channel lain lewat [Set Channel] / /setchpromo -100xxxx (bot harus admin). Pengguna: /jadwalsholat.
+    [Tes Kirim] mengirim contoh hanya ke owner. Pengguna yang memblokir bot otomatis dilewati. Link baru: t.me/BOT?start=nk | role | uprole | redeem.
+- BATALKAN ORDER NOKTEL (owner): Kelola Noktel > Pesanan Pembeli -> pilih pesanan ->
+    menunggu bayar: Batalkan (QRIS dibatalkan, stok dilepas) · sudah dibayar: Batal + Refund + Akun Kembali ke Stok / Batal + Refund (akun dihapus) /
+    Batal Tanpa Refund (akun dihapus). Pembeli dikabari otomatis. Perintah: /batalnk NKO-0001 [stok|refund|norefund].
+- File baru: saldoadm.js, voucher.js, btnlayout.js, autonotif.js, praytimes.js, config.example.json. Diubah: bot.js, core.js, noktel.js, selfrole.js,
+    ownerpanel.js, notify.js, bcpin.js.
+
 UPDATE v1.26.1 - MODE QRIS OWNER (OTOMATIS 1 / OTOMATIS 2 / MANUAL)
 - PANEL OWNER > [Mode QRIS] (atau /modeqris). Owner memilih cara pembayaran QRIS untuk Beli Role, Up Role, Produk Lainnya, dan Noktel (beli + deposit):
     QRIS OTOMATIS > Otomatis 1 = AGW ArtaPedia (bot minta API Key agw_live_... [+ Secret bila diaktifkan admin gateway])
