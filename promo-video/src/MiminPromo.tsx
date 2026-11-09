@@ -1,7 +1,6 @@
 import React from "react";
 import { AbsoluteFill, Audio, Img, interpolate, spring, staticFile, useCurrentFrame, useVideoConfig, delayRender, continueRender, Easing } from "remotion";
-import { useAudioData, visualizeAudio } from "@remotion/media-utils";
-import { Mimin } from "./Mimin";
+import MOUTH from "./mouth.json"; // bukaan mulut per frame (dihitung dari volume dubbing)
 
 // ===== Video promosi 3D komik bersama MIMIN ARTA (dubbing: public/dub.mp3) =====
 const FPS = 30;
@@ -285,8 +284,8 @@ const Subtitle: React.FC = () => {
   return (
     <div style={{ position: "absolute", left: 40, right: 40, bottom: 70, display: "flex", justifyContent: "center", zIndex: 40 }}>
       <div style={{ position: "relative", background: "#fff", border: `7px solid ${C.ink}`, borderRadius: 40, padding: "22px 34px", boxShadow: `10px 10px 0 ${C.ink}`, transform: `scale(${0.9 + 0.1 * appear})`, maxWidth: 1000, textAlign: "center" }}>
-        <div style={{ position: "absolute", left: 120, top: -46, width: 0, height: 0, borderLeft: "30px solid transparent", borderRight: "30px solid transparent", borderBottom: `46px solid ${C.ink}` }} />
-        <div style={{ position: "absolute", left: 130, top: -30, width: 0, height: 0, borderLeft: "20px solid transparent", borderRight: "20px solid transparent", borderBottom: "34px solid #fff" }} />
+        <div style={{ position: "absolute", left: "62%", top: -46, width: 0, height: 0, borderLeft: "30px solid transparent", borderRight: "30px solid transparent", borderBottom: `46px solid ${C.ink}` }} />
+        <div style={{ position: "absolute", left: "calc(62% + 10px)", top: -30, width: 0, height: 0, borderLeft: "20px solid transparent", borderRight: "20px solid transparent", borderBottom: "34px solid #fff" }} />
         {shown.map((w, i) => {
           const wi = g * chunk + i;
           const on = wi <= idx;
@@ -301,31 +300,67 @@ const Subtitle: React.FC = () => {
 };
 
 // ---------------------------------------------------------------- MIMIN ARTA (animasi + lip-sync)
+// Pose maskot (gambar dari owner, latar sudah dihapus). mouth = posisi & lebar mulut di gambar 1600x1600 untuk lip-sync.
+const POSES = {
+  smile: { src: "mimin-smile.png", mouth: { x: 826, y: 607, w: 118, rot: -9, skin: "#f5d6c2" } },
+  point: { src: "mimin-point.png", mouth: { x: 851, y: 611, w: 78, rot: -2, skin: "#f6d7c3" } },
+  laugh: { src: "mimin-laugh.png", mouth: null },
+} as const;
+type PoseKey = keyof typeof POSES;
+// jadwal pose (detik) mengikuti kalimat dubbing; selain ini = smile
+const POSE_AT: [number, number, PoseKey][] = [
+  [0, 1.81, "point"], [12.43, 13.41, "point"], [19.5, 20.8, "laugh"], [32.2, 33.81, "laugh"], [33.81, 39.17, "point"],
+  [39.17, 42.84, "laugh"], [50.41, 52.0, "point"], [69.6, 71.29, "laugh"], [71.29, 78.73, "point"], [78.73, AUDIO_SEC + 2, "laugh"],
+];
+const poseAt = (sec: number): PoseKey => (POSE_AT.find(([a, b]) => sec >= a && sec < b) || [0, 0, "smile"])[2];
+
+const MouthOverlay: React.FC<{ m: { x: number; y: number; w: number; rot: number; skin: string }; open: number }> = ({ m, open }) => {
+  if (open < 0.08) return null;
+  const rx = (m.w / 2) * (0.75 + 0.3 * open);
+  const ry = 8 + open * 36;
+  return (
+    <svg viewBox="0 0 1600 1600" style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}>
+      <defs><filter id="feather"><feGaussianBlur stdDeviation="5" /></filter></defs>
+      <g transform={`rotate(${m.rot} ${m.x} ${m.y})`}>
+        {/* tutup mulut asli dengan warna kulit */}
+        <ellipse cx={m.x} cy={m.y + 2} rx={m.w * 0.62} ry={34} fill={m.skin} filter="url(#feather)" />
+        <ellipse cx={m.x} cy={m.y + 2} rx={m.w * 0.56} ry={28} fill={m.skin} />
+        {/* mulut terbuka */}
+        <path d={`M${m.x - rx} ${m.y} Q${m.x} ${m.y - 6} ${m.x + rx} ${m.y} Q${m.x + rx * 0.7} ${m.y + ry} ${m.x} ${m.y + ry + 2} Q${m.x - rx * 0.7} ${m.y + ry} ${m.x - rx} ${m.y} Z`} fill="#7a2a33" stroke="#d98a8f" strokeWidth={5} strokeLinejoin="round" />
+        <path d={`M${m.x - rx * 0.85} ${m.y + 1} Q${m.x} ${m.y - 3} ${m.x + rx * 0.85} ${m.y + 1} L${m.x + rx * 0.8} ${m.y + 3 + open * 5} Q${m.x} ${m.y + 1 + open * 5} ${m.x - rx * 0.8} ${m.y + 3 + open * 5} Z`} fill="#fff" />
+        {open > 0.35 && <ellipse cx={m.x} cy={m.y + ry * 0.75} rx={rx * 0.5} ry={ry * 0.28} fill="#e8707f" />}
+        <path d={`M${m.x - rx} ${m.y} Q${m.x - rx * 1.08} ${m.y - 3} ${m.x - rx * 1.12} ${m.y - 8}`} stroke="#3a2420" strokeWidth={4} fill="none" strokeLinecap="round" />
+        <path d={`M${m.x + rx} ${m.y} Q${m.x + rx * 1.08} ${m.y - 3} ${m.x + rx * 1.12} ${m.y - 8}`} stroke="#3a2420" strokeWidth={4} fill="none" strokeLinecap="round" />
+      </g>
+    </svg>
+  );
+};
+
 const MiminActor: React.FC = () => {
   const f = useCurrentFrame();
   const { fps } = useVideoConfig();
-  const audio = useAudioData(staticFile("dub.mp3"));
-  let amp = 0;
-  if (audio && f < AUDIO_SEC * fps) {
-    const v = visualizeAudio({ fps, frame: f, audioData: audio, numberOfSamples: 32, optimizeFor: "speed" });
-    amp = v.slice(0, 12).reduce((s, x) => s + x, 0) / 12;
-  }
-  const mouth = Math.min(1, Math.max(0, (amp - 0.015) * 9));
-  // kedip tiap ~3 detik (pola tak beraturan)
-  const cyc = [0, 97, 190, 260, 371, 455];
-  const blinkPhase = (f % 520);
-  const blink = cyc.some((c) => blinkPhase >= c && blinkPhase < c + 5) ? 1 : 0;
-  const wink = ramp(f, [[32.4, 33.4], [80.9, 82.0]], 4);
-  const point = ramp(f, [[13.4, 33.5], [34.0, 42.6], [42.9, 50.2], [50.5, 55.3], [71.4, 78.5]], 10);
-  const wave = ramp(f, [[0.4, 1.8], [79.7, 82.5]], 4);
-  const brow = Math.max(-0.2, ramp(f, [[0, 1.8], [19.5, 20.6], [39.2, 40.4], [61.1, 62.4], [78.7, 79.7]], 5));
-  const tilt = Math.sin(f / 22) * 3 + mouth * 2 * Math.sin(f / 3);
+  const sec = f / fps;
+  const open = (MOUTH as number[])[f] || 0;
+  const pose = poseAt(sec);
+  // "pop" kecil setiap ganti pose
+  const changes = POSE_AT.flatMap(([a, b]) => [t(a), t(b)]).filter((x) => x <= f);
+  const last = changes.length ? Math.max(...changes) : -99;
+  const pop = 1 + 0.05 * Math.max(0, 1 - (f - last) / 8);
   const enter = spring({ frame: f, fps, config: { damping: 12 } });
-  const hop = ramp(f, [[19.5, 19.9], [61.1, 61.5], [78.7, 79.1]], 4) * 40;
-  const breathe = 1 + Math.sin(f / 18) * 0.008;
+  const hop = ramp(f, [[19.5, 19.9], [39.2, 39.6], [61.1, 61.5], [78.7, 79.1]], 4) * 45;
+  const sway = Math.sin(f / 24);
+  const talkBob = open * 6 * Math.sin(f / 2.5);
+  const outline = "drop-shadow(5px 0 0 #fff) drop-shadow(-5px 0 0 #fff) drop-shadow(0 5px 0 #fff) drop-shadow(0 -5px 0 #fff) drop-shadow(16px 18px 0 rgba(27,15,31,0.55)) drop-shadow(0 0 34px rgba(167,139,250,0.8))";
   return (
-    <div style={{ position: "absolute", left: -10, bottom: -80, width: 660, height: 1100, transform: `translateY(${(1 - enter) * 700 - hop}px) scale(${breathe})`, transformOrigin: "bottom center", zIndex: 10, filter: "drop-shadow(0 0 28px rgba(167,139,250,0.75)) drop-shadow(14px 14px 0 rgba(27,15,31,0.55))" }}>
-      <Mimin mouth={mouth} blink={blink} brow={brow} point={point} tilt={tilt} wave={wave} waveT={Math.sin(f / 3)} wink={wink} style={{ width: "100%", height: "100%" }} />
+    <div style={{ position: "absolute", left: 300, top: 1000, width: 840, height: 840, zIndex: 10, perspective: 1400, transform: `translateY(${(1 - enter) * 900 - hop + talkBob}px)` }}>
+      <div style={{ position: "absolute", inset: 0, transformOrigin: "50% 90%", transform: `rotateY(${sway * 7}deg) rotate(${sway * 1.6 + (pose === "laugh" ? Math.sin(f / 3) * 2 : 0)}deg) scale(${pop * (1 + Math.sin(f / 18) * 0.008)})`, filter: outline }}>
+        {(Object.keys(POSES) as PoseKey[]).map((k) => (
+          <div key={k} style={{ position: "absolute", inset: 0, opacity: k === pose ? 1 : 0 }}>
+            <Img src={staticFile(POSES[k].src)} style={{ width: "100%", height: "100%" }} />
+            {POSES[k].mouth && k === pose && <MouthOverlay m={POSES[k].mouth!} open={open} />}
+          </div>
+        ))}
+      </div>
     </div>
   );
 };
@@ -335,7 +370,7 @@ const NamePlate: React.FC = () => {
   const p = useSpr(t(1.8), 10);
   if (vis <= 0) return null;
   return (
-    <div style={{ position: "absolute", right: 60, top: 1130, opacity: vis, transform: `translateX(${(1 - p) * 300}px) rotate(-4deg)`, zIndex: 25 }}>
+    <div style={{ position: "absolute", left: 40, top: 1120, opacity: vis, transform: `translateX(${(1 - p) * -300}px) rotate(-4deg)`, zIndex: 25 }}>
       <div style={{ fontFamily: BANG, fontSize: 96, color: C.yellow, WebkitTextStroke: `5px ${C.ink}`, textShadow: `8px 8px 0 ${C.ink}`, letterSpacing: 4, lineHeight: 1 }}>MIMIN ARTA</div>
       <div style={{ marginTop: 10, display: "inline-block", fontFamily: NUN, fontWeight: 900, fontSize: 34, color: "#fff", background: C.purple, border: `5px solid ${C.ink}`, borderRadius: 14, padding: "4px 18px" }}>Admin {BOT}</div>
     </div>
@@ -368,11 +403,11 @@ export const MiminPromo: React.FC = () => (
     <SceneCta />
     <MiminActor />
     <NamePlate />
-    <Burst at={0.05} text="EH!" x={850} y={1300} size={280} color={C.pink} rot={10} dur={1.5} />
-    <Burst at={19.5} text="TING!" x={850} y={1220} size={320} color={C.yellow} dur={1.8} />
-    <Burst at={39.2} text="GACOR!" x={850} y={1220} size={320} color={C.green} rot={8} dur={2.2} />
-    <Burst at={61.14} text="EITS!" x={850} y={1220} size={300} color={C.pink} dur={1.8} />
-    <Burst at={78.73} text="GAS!" x={850} y={1200} size={360} color={C.yellow} rot={-12} dur={1.6} />
+    <Burst at={0.05} text="EH!" x={230} y={1330} size={280} color={C.pink} rot={10} dur={1.5} />
+    <Burst at={19.5} text="TING!" x={220} y={1300} size={320} color={C.yellow} dur={1.8} />
+    <Burst at={39.2} text="GACOR!" x={220} y={1300} size={320} color={C.green} rot={8} dur={2.2} />
+    <Burst at={61.14} text="EITS!" x={220} y={1300} size={300} color={C.pink} dur={1.8} />
+    <Burst at={78.73} text="GAS!" x={230} y={1290} size={360} color={C.yellow} rot={-12} dur={1.6} />
     <Subtitle />
   </AbsoluteFill>
 );
