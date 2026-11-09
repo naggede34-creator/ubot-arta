@@ -2,12 +2,27 @@ import React from "react";
 import { AbsoluteFill, Audio, Img, interpolate, spring, staticFile, useCurrentFrame, useVideoConfig, delayRender, continueRender, Easing } from "remotion";
 import MOUTH from "./mouth.json"; // bukaan mulut per frame (dihitung dari volume dubbing)
 
-// ===== Video promosi 3D komik bersama MIMIN ARTA (dubbing: public/dub.mp3) =====
+// ===== Video promosi 3D komik bersama MIMIN ARTA (dubbing: public/dub60.mp3, 60 detik) =====
 const FPS = 30;
+// Semua waktu di file ini memakai detik dubbing ASLI (82 detik). Versi 60 detik: jeda dipotong + suara dipercepat,
+// lalu timemap.json memetakan detik asli -> detik baru (lihat toNew / toOrig).
+import TM from "./timemap.json";
 const AUDIO_SEC = 82.21;
-export const MIMIN_DURATION = Math.ceil(AUDIO_SEC * FPS) + 30;
+const KEEP = TM.keep as [number, number][];
+const toNew = (s: number) => {
+  let acc = 0;
+  for (const [a, b] of KEEP) { if (s <= a) break; acc += Math.min(s, b) - a; }
+  return acc / TM.tempo;
+};
+const toOrig = (n: number) => {
+  let rem = n * TM.tempo;
+  for (const [a, b] of KEEP) { if (rem <= b - a) return a + rem; rem -= b - a; }
+  return AUDIO_SEC + (rem / 1);
+};
+const NEW_SEC = toNew(AUDIO_SEC);
+export const MIMIN_DURATION = Math.ceil(NEW_SEC * FPS) + 15;
 const BOT = "@artapediaubot";
-const t = (s: number) => Math.round(s * FPS);
+const t = (s: number) => Math.round(toNew(Math.min(s, AUDIO_SEC)) * FPS + Math.max(0, s - AUDIO_SEC) * FPS);
 
 // muat font komik sebelum render
 if (typeof document !== "undefined" && typeof FontFace !== "undefined") {
@@ -267,7 +282,7 @@ const SceneCta: React.FC = () => {
 // subtitle gaya balon komik, kata muncul bertahap, kata penting kuning
 const Subtitle: React.FC = () => {
   const f = useCurrentFrame();
-  const sec = f / FPS;
+  const sec = toOrig(f / FPS);
   const seg = SUBS.find(([a, b]) => sec >= a && sec < b);
   if (!seg) return null;
   const [a, b, text] = seg;
@@ -339,7 +354,7 @@ const MouthOverlay: React.FC<{ m: { x: number; y: number; w: number; rot: number
 const MiminActor: React.FC = () => {
   const f = useCurrentFrame();
   const { fps } = useVideoConfig();
-  const sec = f / fps;
+  const sec = toOrig(f / fps);
   const open = (MOUTH as number[])[f] || 0;
   const pose = poseAt(sec);
   // "pop" kecil setiap ganti pose
@@ -393,7 +408,7 @@ const Backdrop: React.FC = () => {
 
 export const MiminPromo: React.FC = () => (
   <AbsoluteFill style={{ backgroundColor: "#1e0b3d" }}>
-    <Audio src={staticFile("dub.mp3")} />
+    <Audio src={staticFile("dub60.mp3")} />
     <Backdrop />
     <SceneHook />
     <SceneNoktel />
